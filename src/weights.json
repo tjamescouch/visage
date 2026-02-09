@@ -1,0 +1,23 @@
+{
+  "layer1": {
+    "length": 3.0,
+    "word": 2.5,
+    "lucky": 2.0,
+    "meme": 1.8,
+    "repeat": 1.5,
+    "pronounce": 0.8,
+    "palindrome": 1.2,
+    "sequential": 0.6,
+    "digits": 0.5
+  },
+  "layer2": {
+    "shortWord": 2.0,
+    "digitLucky": 1.5,
+    "repeatLucky": 1.8,
+    "shortDigit": 1.2,
+    "memePalindrome": 1.0
+  },
+  "basePrice": 10,
+  "maxPrice": 5000,
+  "scale": 4.0
+}
