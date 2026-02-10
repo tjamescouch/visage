@@ -1,41 +1,44 @@
-# constraints
+# Constraints
+
+## package boundary
+
+- agentface and visage are separate packages with separate repositories, dependencies, and release cycles.
+- the sole interface between them is the MocapFrame JSON format.
+- visage has no NLP or ML dependencies.
+- either package can be replaced independently as long as the mocap contract is honored.
+
+## mocap format
+
+- MocapFrame is a JSON object with `t` (timestamp float) and `pts` (dict of named floats).
+- 18 control points in v1 (see product.md for the full list).
+- all values are deltas from neutral rest pose unless otherwise noted.
+- the format is extensible: new points can be added. consumers ignore points they don't recognize.
+- frames are self-contained — no delta encoding, no dependency on previous frames.
+- transport options: stdin JSON lines (one frame per line), WebSocket (JSON messages), or direct function call.
 
 ## runtime
 
-- use Python 3.10 or later.
-- use Pygame for the built-in face renderer and window management.
-- use NumPy for parameter vector operations and blending math.
-- maintain 60 frames per second in the main render loop.
-- cap the frame delta time at 50 milliseconds to prevent physics jumps after stalls.
+- **Pygame backend**: Python 3.10+, Pygame, NumPy. targets 60 FPS render. frame delta capped at 50ms.
+- **React backend**: TypeScript, React 18+, no additional runtime dependencies. renders at requestAnimationFrame rate.
+- both backends consume the identical MocapFrame format.
 
-## architecture
+## rendering
 
-- keep the sentiment brain, face model, animation system, signal protocol, and renderer as separate modules with no circular dependencies.
-- the main loop is single-threaded; only input adapters (stdin listener, file watcher) run on background threads.
-- use thread-safe queues for all communication between background threads and the main loop.
-- the parameter vector is the sole interface between the animation system and the renderer. the renderer never inspects animation layers or emotion state directly.
+- all visual proportions are fractions of the render target dimensions, not pixel values.
+- face styles are loadable from JSON. sensible defaults are always available.
+- the renderer is stateless — it is a pure function of the current mocap frame and style.
+- smoothing (if any) happens in the mocap receiver, not in the renderer.
 
-## animation
+## face packs
 
-- expressions blend via weighted layers, never by discrete switching.
-- the idle animator (breathing, blinking, eye drift) is always active and additive on top of expression layers.
-- the resting baseline always participates in blending with nonzero weight so the face returns to neutral when all layers decay.
-
-## input protocol
-
-- accept expression commands as JSON lines on stdin with at minimum an "expression" field.
-- accept tool-call-wrapped JSON transparently (objects with "name" and "arguments" fields).
-- the file watcher polls at 50 millisecond intervals.
-- handle file truncation by resetting the read position to the beginning.
-
-## style
-
-- all visual proportions (positions, sizes) are specified as fractions of window dimensions, not pixel values.
-- custom styles are loadable from JSON files matching the FaceStyle fields.
-- provide sensible defaults for all style fields so the face renders without any configuration.
+- a face pack is a style configuration plus optional art assets (SVG templates, textures).
+- face packs are independent of agentface — they define appearance, not behavior.
+- the same mocap stream drives any face pack.
+- face pack format is JSON with optional asset references.
 
 ## future direction
 
-- the Pygame oval renderer is the current implementation. pivot the renderer to use Wan 2.2 video generation for face rendering via pre-generated face pack clips.
-- integrate with AgentChat marketplace to register and trade face packs.
-- the animation system and sentiment brain must remain renderer-agnostic to support this pivot.
+- Wan 2.2 video generation is for offline face pack clip creation, not real-time rendering.
+- a video clip renderer backend would select pre-generated clips by mocap state ranges.
+- AgentChat marketplace integration: face packs as tradeable assets between agents.
+- audio-driven lip sync via Wan 2.2 S2V is a future extension, not v1.
