@@ -1,4 +1,8 @@
 __pycache__/
 node_modules/
 *.pyc
+*.egg-info/
+dist/
+build/
+.pytest_cache/
 .agentchat/
