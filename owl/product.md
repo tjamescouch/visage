@@ -1,34 +1,20 @@
-# visage
+# visage-web
 
-Turns mocap points into pixels. Pure renderer for animated LLM agent faces.
+browser-based face renderer for LLM agents. Express server serves a Canvas 2D face that animates from MocapFrame data pushed over WebSocket.
 
-visage knows nothing about language or sentiment. It consumes a stream of MocapFrame data from [agentface](https://github.com/tjamescouch/agentface) (or any compatible source) and renders an animated face.
+## components
 
-## Inputs
+- [server](components/server.md) - Express app serving static files and WebSocket relay
+- [renderer](components/renderer.md) - Canvas 2D face renderer in the browser
+- [receiver](components/receiver.md) - WebSocket client receiving MocapFrame data
 
-- **MocapFrame stream** — JSON objects with 18 named control points at 30 FPS. See MocapFrame Format below.
-- **Face style configuration** — colors, proportions, art assets defining the visual appearance.
+## constraints
 
-## Renderer Backends
-
-| Backend | Use case | Technology |
-|---------|----------|------------|
-| Pygame  | Desktop, debugging, standalone | Pygame ellipses/lines, NumPy |
-| React   | Web embed, dashboard integration | SVG paths or Canvas 2D |
-| Video clip | High quality, pre-rendered | Wan 2.2 face pack clips (future) |
-
-All backends consume the same mocap format. Swapping backends does not affect the mocap source.
-
-## Styling
-
-- **Face packs** define visual appearance independent of motion
-- A face pack is a collection of assets (SVG templates, color palettes, proportion maps) that a renderer backend uses to draw
-- Same mocap data + different face pack = different-looking character, same expressions
-- Face packs are tradeable on the AgentChat marketplace (future)
+see [constraints.md](constraints.md)
 
 ## MocapFrame Format
 
-The `MocapFrame` is the input contract. Any source that produces this format is compatible.
+the input contract. any source producing this format is compatible.
 
 ```json
 {
@@ -56,15 +42,13 @@ The `MocapFrame` is the input contract. Any source that produces this format is 
 }
 ```
 
-- **18 control points** — named floats, each normalized to a natural range
-- All values are relative deltas from a neutral rest pose (0.0 = neutral for most, 1.0 for eye_open/face_scale)
-- Points are inspired by ARKit blendshapes but simplified for 2D/2.5D faces
-- The set is extensible — renderers ignore points they don't support
+- 18 control points, named floats, normalized to natural ranges
+- all values are deltas from neutral rest pose (0.0 = neutral for most, 1.0 for eye_open/face_scale)
+- the set is extensible; renderers ignore unknown points
 
-## Non-Goals
+## non-goals
 
-- visage does NOT analyze text or know about LLMs
-- No heavy ML models in the real-time path (Wan 2.2 is offline generation only)
-- No audio input or lip-sync in v1
-- No 3D rendering — 2D/2.5D faces only
-- No code-level dependency on agentface
+- no text analysis or LLM awareness
+- no heavy ML in the real-time path
+- no audio input or lip-sync in v1
+- no 3D rendering

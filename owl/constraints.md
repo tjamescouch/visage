@@ -1,44 +1,38 @@
-# Constraints
+# constraints
 
-## package boundary
+## stack
 
-- agentface and visage are separate packages with separate repositories, dependencies, and release cycles.
-- the sole interface between them is the MocapFrame JSON format.
-- visage has no NLP or ML dependencies.
-- either package can be replaced independently as long as the mocap contract is honored.
+- backend: node, express
+- frontend: vanilla js, canvas 2d api (no framework)
+- transport: ws (npm package) for websocket
+- no build step for frontend — plain html/js served statically
 
-## mocap format
+## ports
 
-- MocapFrame is a JSON object with `t` (timestamp float) and `pts` (dict of named floats).
-- 18 control points in v1 (see product.md for the full list).
-- all values are deltas from neutral rest pose unless otherwise noted.
-- the format is extensible: new points can be added. consumers ignore points they don't recognize.
-- frames are self-contained — no delta encoding, no dependency on previous frames.
-- transport options: stdin JSON lines (one frame per line), WebSocket (JSON messages), or direct function call.
-
-## runtime
-
-- **Pygame backend**: Python 3.10+, Pygame, NumPy. targets 60 FPS render. frame delta capped at 50ms.
-- **React backend**: TypeScript, React 18+, no additional runtime dependencies. renders at requestAnimationFrame rate.
-- both backends consume the identical MocapFrame format.
+- express server on 3000
+- websocket on same port (upgrade from http)
 
 ## rendering
 
-- all visual proportions are fractions of the render target dimensions, not pixel values.
-- face styles are loadable from JSON. sensible defaults are always available.
-- the renderer is stateless — it is a pure function of the current mocap frame and style.
-- smoothing (if any) happens in the mocap receiver, not in the renderer.
+- all visual proportions are fractions of canvas dimensions, not pixel values
+- face styles loadable from JSON; sensible defaults always available
+- renderer is stateless — pure function of current mocap frame and style
+- targets requestAnimationFrame rate (60 FPS)
 
-## face packs
+## mocap format
 
-- a face pack is a style configuration plus optional art assets (SVG templates, textures).
-- face packs are independent of agentface — they define appearance, not behavior.
-- the same mocap stream drives any face pack.
-- face pack format is JSON with optional asset references.
+- MocapFrame is a JSON object with `t` (timestamp float) and `pts` (dict of named floats)
+- 18 control points in v1
+- frames are self-contained — no delta encoding
+- transport: WebSocket JSON messages
 
-## future direction
+## dependencies
 
-- Wan 2.2 video generation is for offline face pack clip creation, not real-time rendering.
-- a video clip renderer backend would select pre-generated clips by mocap state ranges.
-- AgentChat marketplace integration: face packs as tradeable assets between agents.
-- audio-driven lip sync via Wan 2.2 S2V is a future extension, not v1.
+- minimal. express, ws, and nothing else on the server
+- zero dependencies on the client (vanilla js)
+
+## style
+
+- es modules throughout
+- no typescript for v1 — plain javascript
+- clean separation: server knows nothing about rendering, client knows nothing about frame sourcing
