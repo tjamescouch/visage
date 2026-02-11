@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visage</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #111; overflow: hidden; }
+    canvas { display: block; }
+    #status {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      color: #666;
+      font: 12px monospace;
+      text-align: right;
+    }
+    #status.connected { color: #4a4; }
+    #debug {
+      display: none;
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      color: #888;
+      font: 11px monospace;
+      line-height: 1.4;
+      background: rgba(0,0,0,0.7);
+      padding: 8px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="face"></canvas>
+  <div id="status">disconnected</div>
+  <div id="debug"></div>
+  <script type="module" src="receiver.js"></script>
+  <script type="module" src="renderer.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
