@@ -1,0 +1,14 @@
+{
+  "name": "visage-ears",
+  "version": "1.0.0",
+  "description": "Speech-to-text ears service for Visage — browser mic → agentchat",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0"
+  }
+}

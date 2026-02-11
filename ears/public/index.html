@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visage Ears — STT</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 0.5rem;
+      color: #58a6ff;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #8b949e;
+      margin-bottom: 2rem;
+    }
+
+    /* Status indicators */
+    .status-bar {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #484f58;
+      transition: background 0.3s;
+    }
+
+    .dot.green { background: #3fb950; }
+    .dot.yellow { background: #d29922; }
+    .dot.red { background: #f85149; }
+    .dot.pulse {
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Main listening button */
+    .listen-btn {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 3px solid #30363d;
+      background: #161b22;
+      color: #8b949e;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0.3rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .listen-btn:hover {
+      border-color: #58a6ff;
+      color: #58a6ff;
+    }
+
+    .listen-btn.active {
+      border-color: #3fb950;
+      color: #3fb950;
+      box-shadow: 0 0 20px rgba(63, 185, 80, 0.2);
+    }
+
+    .listen-btn.active .mic-icon {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .listen-btn .mic-icon {
+      font-size: 2rem;
+    }
+
+    .listen-btn .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Transcript area */
+    .transcript-section {
+      width: 100%;
+      max-width: 600px;
+    }
+
+    .transcript-header {
+      font-size: 0.8rem;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .interim {
+      min-height: 2.5rem;
+      padding: 0.75rem 1rem;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-style: italic;
+      color: #8b949e;
+      font-size: 0.95rem;
+      word-wrap: break-word;
+    }
+
+    .log {
+      max-height: 400px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .log-entry {
+      padding: 0.5rem 0.75rem;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      word-wrap: break-word;
+    }
+
+    .log-entry .time {
+      color: #484f58;
+      font-size: 0.75rem;
+      margin-right: 0.5rem;
+    }
+
+    .log-entry.sent {
+      border-left: 3px solid #3fb950;
+    }
+
+    .log-entry.error {
+      border-left: 3px solid #f85149;
+      color: #f85149;
+    }
+
+    /* VAD volume meter */
+    .vad-meter {
+      width: 100%;
+      max-width: 600px;
+      height: 6px;
+      background: #21262d;
+      border-radius: 3px;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+
+    .vad-meter .fill {
+      height: 100%;
+      width: 0%;
+      background: #3fb950;
+      border-radius: 3px;
+      transition: width 0.1s;
+    }
+
+    /* Settings panel */
+    .settings {
+      margin-top: 2rem;
+      width: 100%;
+      max-width: 600px;
+      padding: 1rem;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+    }
+
+    .settings summary {
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #8b949e;
+    }
+
+    .settings .fields {
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .settings label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.8rem;
+      color: #8b949e;
+    }
+
+    .settings select,
+    .settings input {
+      padding: 0.4rem 0.6rem;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      color: #c9d1d9;
+      font-size: 0.85rem;
+    }
+
+    .unsupported {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #f85149;
+      font-size: 1.1rem;
+    }
+
+    .unsupported a {
+      color: #58a6ff;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Visage Ears</h1>
+  <p class="subtitle">Browser-based speech-to-text for agentchat</p>
+
+  <div class="status-bar">
+    <div class="status-item">
+      <div class="dot" id="dotWs"></div>
+      <span>Server</span>
+    </div>
+    <div class="status-item">
+      <div class="dot" id="dotAgent"></div>
+      <span>AgentChat</span>
+    </div>
+    <div class="status-item">
+      <div class="dot" id="dotMic"></div>
+      <span>Mic</span>
+    </div>
+  </div>
+
+  <div class="vad-meter" id="vadMeter"><div class="fill" id="vadFill"></div></div>
+
+  <button class="listen-btn" id="listenBtn">
+    <span class="mic-icon">&#x1F399;</span>
+    <span class="label">Start</span>
+  </button>
+
+  <div class="transcript-section">
+    <div class="transcript-header">Live preview</div>
+    <div class="interim" id="interim">—</div>
+
+    <div class="transcript-header">Sent transcriptions</div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <details class="settings">
+    <summary>Settings</summary>
+    <div class="fields">
+      <label>
+        Language
+        <select id="lang">
+          <option value="en-US" selected>English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="es-ES">Spanish</option>
+          <option value="fr-FR">French</option>
+          <option value="de-DE">German</option>
+          <option value="ja-JP">Japanese</option>
+          <option value="zh-CN">Chinese (Mandarin)</option>
+        </select>
+      </label>
+      <label>
+        Min confidence (0.0 - 1.0)
+        <input type="number" id="minConfidence" value="0.5" min="0" max="1" step="0.05">
+      </label>
+      <label>
+        Min length (characters) — ignore very short utterances
+        <input type="number" id="minLength" value="2" min="1" max="50" step="1">
+      </label>
+      <label>
+        Silence restart delay (ms)
+        <input type="number" id="silenceDelay" value="300" min="100" max="5000" step="100">
+      </label>
+    </div>
+  </details>
+
+  <div class="unsupported" id="unsupported" style="display:none;">
+    Web Speech API is not supported in this browser.<br>
+    Please use <a href="https://www.google.com/chrome/" target="_blank">Google Chrome</a> or Microsoft Edge.
+  </div>
+
+  <script>
+    // --- Feature detection ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      document.getElementById('unsupported').style.display = 'block';
+      document.getElementById('listenBtn').style.display = 'none';
+    }
+
+    // --- DOM refs ---
+    const listenBtn     = document.getElementById('listenBtn');
+    const interimEl     = document.getElementById('interim');
+    const logEl         = document.getElementById('log');
+    const dotWs         = document.getElementById('dotWs');
+    const dotAgent      = document.getElementById('dotAgent');
+    const dotMic        = document.getElementById('dotMic');
+    const vadFill       = document.getElementById('vadFill');
+    const langSelect    = document.getElementById('lang');
+    const minConfInput  = document.getElementById('minConfidence');
+    const minLenInput   = document.getElementById('minLength');
+    const silenceInput  = document.getElementById('silenceDelay');
+
+    // --- State ---
+    let listening = false;
+    let recognition = null;
+    let ws = null;
+    let audioContext = null;
+    let analyser = null;
+    let micStream = null;
+    let vadAnimFrame = null;
+    let restartTimeout = null;
+    let intentionalStop = false;
+
+    // --- WebSocket to ears-server ---
+
+    function connectWs() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${proto}://${location.host}/ws`;
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        dotWs.className = 'dot green';
+        console.log('[ears-ui] Connected to ears-server');
+      };
+
+      ws.onmessage = (event) => {
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+
+        if (msg.type === 'status') {
+          dotAgent.className = msg.agentchat === 'connected' ? 'dot green' : 'dot red';
+        }
+
+        if (msg.type === 'ack') {
+          addLog(msg.text, 'sent');
+        }
+      };
+
+      ws.onclose = () => {
+        dotWs.className = 'dot red';
+        dotAgent.className = 'dot red';
+        console.log('[ears-ui] Disconnected, reconnecting in 2s...');
+        setTimeout(connectWs, 2000);
+      };
+
+      ws.onerror = () => {
+        // onclose will fire
+      };
+    }
+
+    function sendTranscription(text) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'transcription', text }));
+      } else {
+        // Fallback to REST
+        fetch('/api/transcription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        }).then(r => r.json()).then(data => {
+          if (data.ok) addLog(text, 'sent');
+        }).catch(err => {
+          addLog(`Failed to send: ${err.message}`, 'error');
+        });
+      }
+    }
+
+    // --- VAD (volume meter via Web Audio API) ---
+
+    async function startVAD() {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(micStream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        updateVAD();
+      } catch (err) {
+        console.warn('[ears-ui] Could not start VAD:', err.message);
+      }
+    }
+
+    function updateVAD() {
+      if (!analyser) return;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
+
+      // Average volume level
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) sum += data[i];
+      const avg = sum / data.length;
+      const pct = Math.min(100, (avg / 128) * 100);
+
+      vadFill.style.width = pct + '%';
+      if (pct > 15) {
+        vadFill.style.background = pct > 50 ? '#f0883e' : '#3fb950';
+      } else {
+        vadFill.style.background = '#3fb950';
+      }
+
+      vadAnimFrame = requestAnimationFrame(updateVAD);
+    }
+
+    function stopVAD() {
+      if (vadAnimFrame) cancelAnimationFrame(vadAnimFrame);
+      if (audioContext) audioContext.close().catch(() => {});
+      if (micStream) micStream.getTracks().forEach(t => t.stop());
+      audioContext = null;
+      analyser = null;
+      micStream = null;
+      vadFill.style.width = '0%';
+    }
+
+    // --- Speech Recognition ---
+
+    function createRecognition() {
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = langSelect.value;
+      rec.maxAlternatives = 1;
+
+      rec.onstart = () => {
+        dotMic.className = 'dot green pulse';
+        console.log('[ears-ui] Recognition started');
+      };
+
+      rec.onresult = (event) => {
+        const minConf = parseFloat(minConfInput.value) || 0.5;
+        const minLen  = parseInt(minLenInput.value, 10) || 2;
+
+        let interimText = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          const transcript = result[0].transcript;
+          const confidence = result[0].confidence;
+
+          if (result.isFinal) {
+            // Only send if meets confidence and length thresholds
+            const trimmed = transcript.trim();
+            if (trimmed.length >= minLen && (confidence === 0 || confidence >= minConf)) {
+              sendTranscription(trimmed);
+              interimEl.textContent = '—';
+            } else {
+              console.log(`[ears-ui] Skipped (conf=${confidence.toFixed(2)}, len=${trimmed.length}): "${trimmed}"`);
+            }
+          } else {
+            interimText += transcript;
+          }
+        }
+
+        if (interimText) {
+          interimEl.textContent = interimText;
+        }
+      };
+
+      rec.onerror = (event) => {
+        console.warn(`[ears-ui] Recognition error: ${event.error}`);
+        dotMic.className = 'dot yellow';
+
+        // 'no-speech' is normal — just means silence; auto-restart will handle it
+        if (event.error === 'no-speech' || event.error === 'audio-capture') {
+          return;
+        }
+
+        // 'not-allowed' means the user denied mic permission
+        if (event.error === 'not-allowed') {
+          addLog('Microphone permission denied', 'error');
+          stopListening();
+          return;
+        }
+
+        // 'aborted' is expected when we intentionally stop
+        if (event.error === 'aborted') {
+          return;
+        }
+      };
+
+      rec.onend = () => {
+        dotMic.className = listening ? 'dot yellow' : 'dot';
+        console.log('[ears-ui] Recognition ended');
+
+        // Auto-restart if we're still supposed to be listening
+        if (listening && !intentionalStop) {
+          const delay = parseInt(silenceInput.value, 10) || 300;
+          restartTimeout = setTimeout(() => {
+            if (listening) {
+              console.log('[ears-ui] Restarting recognition...');
+              try {
+                recognition.lang = langSelect.value;
+                recognition.start();
+              } catch (err) {
+                console.warn('[ears-ui] Restart failed:', err.message);
+                // Try again after a longer delay
+                restartTimeout = setTimeout(() => {
+                  if (listening) {
+                    try { recognition.start(); } catch {}
+                  }
+                }, 1000);
+              }
+            }
+          }, delay);
+        }
+      };
+
+      return rec;
+    }
+
+    function startListening() {
+      if (listening) return;
+      listening = true;
+      intentionalStop = false;
+
+      recognition = createRecognition();
+      try {
+        recognition.start();
+      } catch (err) {
+        addLog(`Could not start recognition: ${err.message}`, 'error');
+        listening = false;
+        return;
+      }
+
+      startVAD();
+
+      listenBtn.classList.add('active');
+      listenBtn.querySelector('.label').textContent = 'Listening';
+    }
+
+    function stopListening() {
+      listening = false;
+      intentionalStop = true;
+
+      if (restartTimeout) {
+        clearTimeout(restartTimeout);
+        restartTimeout = null;
+      }
+
+      if (recognition) {
+        try { recognition.stop(); } catch {}
+        recognition = null;
+      }
+
+      stopVAD();
+
+      dotMic.className = 'dot';
+      listenBtn.classList.remove('active');
+      listenBtn.querySelector('.label').textContent = 'Start';
+      interimEl.textContent = '—';
+    }
+
+    // --- Log UI ---
+
+    function addLog(text, type) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry ' + (type || '');
+
+      const time = new Date().toLocaleTimeString();
+      entry.innerHTML = `<span class="time">${time}</span>${escapeHtml(text)}`;
+
+      logEl.prepend(entry);
+
+      // Keep log manageable
+      while (logEl.children.length > 100) {
+        logEl.removeChild(logEl.lastChild);
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // --- Event listeners ---
+
+    listenBtn.addEventListener('click', () => {
+      if (listening) {
+        stopListening();
+      } else {
+        startListening();
+      }
+    });
+
+    // --- Init ---
+
+    connectWs();
+  </script>
+</body>
+</html>
