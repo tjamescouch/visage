@@ -304,6 +304,24 @@
         Silence restart delay (ms)
         <input type="number" id="silenceDelay" value="300" min="100" max="5000" step="100">
       </label>
+      <label>
+        Input mode
+        <select id="inputMode">
+          <option value="continuous" selected>Continuous (always listening)</option>
+          <option value="ptt">Push-to-talk (hold Space)</option>
+        </select>
+      </label>
+      <label>
+        TTS audio playback
+        <select id="ttsPlayback">
+          <option value="off" selected>Off</option>
+          <option value="on">On — play agent speech</option>
+        </select>
+      </label>
+      <label>
+        TTS service URL
+        <input type="text" id="ttsUrl" value="http://localhost:3001" placeholder="http://localhost:3001">
+      </label>
     </div>
   </details>
 
@@ -332,6 +350,9 @@
     const minConfInput  = document.getElementById('minConfidence');
     const minLenInput   = document.getElementById('minLength');
     const silenceInput  = document.getElementById('silenceDelay');
+    const inputModeSelect = document.getElementById('inputMode');
+    const ttsPlaybackSelect = document.getElementById('ttsPlayback');
+    const ttsUrlInput   = document.getElementById('ttsUrl');
 
     // --- State ---
     let listening = false;
@@ -343,6 +364,7 @@
     let vadAnimFrame = null;
     let restartTimeout = null;
     let intentionalStop = false;
+    let pttActive = false; // spacebar currently held
 
     // --- WebSocket to ears-server ---
 
@@ -366,6 +388,12 @@
 
         if (msg.type === 'ack') {
           addLog(msg.text, 'sent');
+        }
+
+        // Agent message received — play via TTS if enabled
+        if (msg.type === 'agent_message' && msg.text) {
+          addLog(`[${msg.from}] ${msg.text}`, '');
+          playTTSAudio(msg.text);
         }
       };
 
@@ -514,7 +542,16 @@
         dotMic.className = listening ? 'dot yellow' : 'dot';
         console.log('[ears-ui] Recognition ended');
 
-        // Auto-restart if we're still supposed to be listening
+        // In PTT mode, don't auto-restart — wait for next spacebar press
+        if (inputModeSelect.value === 'ptt') {
+          if (pttActive) {
+            // Spacebar still held but recognition ended (e.g. silence) — restart
+            try { recognition.start(); } catch {}
+          }
+          return;
+        }
+
+        // Auto-restart if we're still supposed to be listening (continuous mode)
         if (listening && !intentionalStop) {
           const delay = parseInt(silenceInput.value, 10) || 300;
           restartTimeout = setTimeout(() => {
@@ -614,6 +651,125 @@
         startListening();
       }
     });
+
+    // --- Push-to-talk (spacebar) ---
+
+    document.addEventListener('keydown', (e) => {
+      if (inputModeSelect.value !== 'ptt') return;
+      if (e.code !== 'Space') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+      if (pttActive) return; // already held
+      e.preventDefault();
+
+      pttActive = true;
+      listenBtn.classList.add('active');
+      listenBtn.querySelector('.label').textContent = 'Recording';
+
+      // Ensure recognition exists and start it
+      if (!recognition) {
+        recognition = createRecognition();
+      }
+      try {
+        recognition.lang = langSelect.value;
+        recognition.start();
+        listening = true;
+        intentionalStop = false;
+        startVAD();
+      } catch (err) {
+        console.warn('[ears-ui] PTT start failed:', err.message);
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (inputModeSelect.value !== 'ptt') return;
+      if (e.code !== 'Space') return;
+      if (!pttActive) return;
+      e.preventDefault();
+
+      pttActive = false;
+      listenBtn.classList.remove('active');
+      listenBtn.querySelector('.label').textContent = 'Hold Space';
+
+      // Stop recognition
+      intentionalStop = true;
+      listening = false;
+      if (recognition) {
+        try { recognition.stop(); } catch {}
+      }
+      stopVAD();
+      dotMic.className = 'dot';
+      interimEl.textContent = '\u2014';
+    });
+
+    // Update button label when mode changes
+    inputModeSelect.addEventListener('change', () => {
+      if (listening) stopListening();
+      if (inputModeSelect.value === 'ptt') {
+        listenBtn.querySelector('.label').textContent = 'Hold Space';
+        // Disable click toggle in PTT mode
+        listenBtn.style.pointerEvents = 'none';
+        listenBtn.style.opacity = '0.6';
+      } else {
+        listenBtn.querySelector('.label').textContent = 'Start';
+        listenBtn.style.pointerEvents = '';
+        listenBtn.style.opacity = '';
+      }
+    });
+
+    // --- TTS Audio Playback (queued) ---
+    // Listens on the ears-server WS for agent messages and plays them via TTS
+    // Queues audio to prevent overlapping playback
+
+    const ttsQueue = [];
+    let ttsPlaying = false;
+
+    function playTTSAudio(text) {
+      if (ttsPlaybackSelect.value !== 'on') return;
+      ttsQueue.push(text);
+      if (!ttsPlaying) drainTTSQueue();
+    }
+
+    function drainTTSQueue() {
+      if (ttsQueue.length === 0) {
+        ttsPlaying = false;
+        return;
+      }
+      ttsPlaying = true;
+      const text = ttsQueue.shift();
+      const ttsBase = ttsUrlInput.value.replace(/\/+$/, '');
+      const url = `${ttsBase}/api/speak`;
+
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      }).then(r => {
+        if (!r.ok) throw new Error(`TTS returned ${r.status}`);
+        return r.blob();
+      }).then(blob => {
+        if (blob.size > 0 && blob.type.startsWith('audio')) {
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+          audio.onended = () => {
+            URL.revokeObjectURL(audioUrl);
+            drainTTSQueue(); // play next in queue
+          };
+          audio.onerror = () => {
+            URL.revokeObjectURL(audioUrl);
+            drainTTSQueue();
+          };
+          audio.play().catch(err => {
+            console.warn('[ears-ui] Audio play failed:', err.message);
+            drainTTSQueue();
+          });
+        } else {
+          drainTTSQueue();
+        }
+      }).catch(err => {
+        console.warn('[ears-ui] TTS playback error:', err.message);
+        drainTTSQueue(); // don't stall the queue on error
+      });
+    }
 
     // --- Init ---
 

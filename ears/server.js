@@ -66,6 +66,20 @@ function connectAgentChat() {
     if (msg.type === 'error') {
       console.error(`[ears] Agentchat error: ${msg.text || JSON.stringify(msg)}`);
     }
+
+    // Forward agent messages to browser clients for TTS playback
+    if (msg.type === 'message' && msg.text && msg.from_name !== SENDER_NICK) {
+      const relay = JSON.stringify({
+        type: 'agent_message',
+        text: msg.text,
+        from: msg.from_name || msg.from || 'agent',
+      });
+      for (const client of browserClients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(relay);
+        }
+      }
+    }
   });
 
   agentWs.on('close', (code) => {
