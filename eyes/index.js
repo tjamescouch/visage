@@ -21,7 +21,7 @@ const AGENTCHAT_CHANNEL = process.env.AGENTCHAT_CHANNEL || '#general';
 const CAPTURE_INTERVAL_S = parseInt(process.env.EYES_INTERVAL_S || '0', 10); // 0 = on-demand only
 const CAPTURE_PATH = process.env.EYES_CAPTURE_PATH || '/tmp/visage-eyes-capture.png';
 const CHANGE_THRESHOLD = parseFloat(process.env.EYES_CHANGE_THRESHOLD || '0.05'); // 5% pixel change
-const HTTP_PORT = parseInt(process.env.EYES_PORT || '3002', 10);
+const HTTP_PORT = parseInt(process.env.EYES_PORT || '3003', 10);
 const MODEL = process.env.EYES_MODEL || 'claude-sonnet-4-5-20250929';
 const MAX_TOKENS = parseInt(process.env.EYES_MAX_TOKENS || '300', 10);
 
@@ -164,15 +164,23 @@ function connectChat() {
   ws.on('open', () => {
     console.log('[eyes] Connected to AgentChat');
     reconnectDelay = 1000;
-    ws.send(JSON.stringify({ role: 'listener' }));
-    ws.send(JSON.stringify({ type: 'join', channel: AGENTCHAT_CHANNEL }));
+    ws.send(JSON.stringify({ type: 'IDENTIFY', name: 'visage-eyes' }));
   });
 
   ws.on('message', (raw) => {
-    // Listen for "eyes" commands from chat
     try {
       const msg = JSON.parse(raw.toString());
-      if (msg.type === 'message' && msg.content) {
+
+      // Handle WELCOME — join channel after identification
+      if (msg.type === 'WELCOME') {
+        console.log(`[eyes] Identified as ${msg.agent_id || 'ephemeral'}`);
+        ws.send(JSON.stringify({ type: 'JOIN', channel: AGENTCHAT_CHANNEL }));
+        ws.send(JSON.stringify({ type: 'SET_PRESENCE', status: 'listening' }));
+        return;
+      }
+
+      // Listen for "eyes" commands from chat
+      if (msg.type === 'MSG' && msg.content) {
         const text = msg.content.trim().toLowerCase();
         if (text === '!look' || text === '!eyes' || text === '!screenshot') {
           console.log(`[eyes] On-demand capture triggered by ${msg.from_name || msg.from}`);

@@ -95,7 +95,7 @@ class PygameAWRenderer:
 
     def present(self) -> None:
         pygame.display.flip()
-        self._clock.tick(30)
+        self._clock.tick(60)
 
     def handle_events(self) -> bool:
         for event in pygame.event.get():

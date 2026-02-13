@@ -176,9 +176,9 @@ app.post('/api/analyze', (req, res) => {
 // Demo endpoint - speak a test phrase
 app.post('/api/demo', (req, res) => {
   const demoText = req.body?.text || 'Hello, I am a virtual agent. Nice to meet you.';
-  // Forward to speak
   req.body = { text: demoText, speed: 0.9, fps: 30 };
-  app.handle(req, res);
+  req.url = '/api/speak';
+  app._router.handle(req, res, () => res.status(500).json({ error: 'routing failed' }));
 });
 
 // --- Start ---

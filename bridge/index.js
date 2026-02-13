@@ -98,16 +98,13 @@ function connect() {
     console.log(`[bridge] Connected to agentchat`);
     reconnectDelay = 1000;
 
-    // Identify as a listener and join the target channel
-    ws.send(JSON.stringify({ role: 'listener' }));
-
-    // Join the configured channel
+    // Identify with the agentchat protocol (ephemeral, no pubkey)
     ws.send(JSON.stringify({
-      type: 'join',
-      channel: AGENTCHAT_CHANNEL,
+      type: 'IDENTIFY',
+      name: 'visage-bridge',
     }));
 
-    console.log(`[bridge] Joined ${AGENTCHAT_CHANNEL}`);
+    console.log(`[bridge] Sent IDENTIFY, waiting for WELCOME...`);
   });
 
   ws.on('message', (raw) => {
@@ -144,22 +141,41 @@ function scheduleReconnect() {
 // --- Message handling ---
 
 function handleMessage(msg) {
-  // AgentChat message format:
-  //   { type: 'message', channel: '#general', from: 'agent-id', nick: 'Agent', text: '...' }
-  // There are also system messages (type: 'system', 'join', 'leave', etc.) which we skip.
+  // AgentChat protocol types:
+  //   WELCOME  — server accepted our IDENTIFY
+  //   MSG      — chat message: { type:'MSG', from, from_name, to, content, ts }
+  //   ERROR    — server error
+  //   CHALLENGE / VERIFIED — pubkey auth (not used here)
 
-  if (msg.type === 'error') {
-    console.error(`[bridge] Server error: ${msg.text || JSON.stringify(msg)}`);
+  if (msg.type === 'WELCOME') {
+    console.log(`[bridge] Identified as ${msg.agent_id || 'ephemeral'}`);
+    // Join the configured channel
+    ws.send(JSON.stringify({
+      type: 'JOIN',
+      channel: AGENTCHAT_CHANNEL,
+    }));
+    // Set presence to listening
+    ws.send(JSON.stringify({
+      type: 'SET_PRESENCE',
+      status: 'listening',
+      status_text: 'Forwarding messages to TTS',
+    }));
+    console.log(`[bridge] Joined ${AGENTCHAT_CHANNEL}`);
+    return;
+  }
+
+  if (msg.type === 'ERROR') {
+    console.error(`[bridge] Server error: ${msg.message || JSON.stringify(msg)}`);
     return;
   }
 
   // Only forward actual chat messages
-  if (msg.type !== 'message') return;
+  if (msg.type !== 'MSG') return;
 
   // Only forward from the configured channel
-  if (msg.channel && msg.channel !== AGENTCHAT_CHANNEL) return;
+  if (msg.to && msg.to !== AGENTCHAT_CHANNEL) return;
 
-  const text = msg.text || msg.message || msg.content;
+  const text = msg.content;
   if (!text || typeof text !== 'string') return;
 
   // Skip empty or very short messages
@@ -172,7 +188,7 @@ function handleMessage(msg) {
   // Limit individual message length for TTS (the TTS service caps at 5000)
   const capped = trimmed.length > 4000 ? trimmed.slice(0, 4000) + '...' : trimmed;
 
-  const sender = msg.nick || msg.from || 'unknown';
+  const sender = msg.from_name || msg.from || 'unknown';
   console.log(`[bridge] Received from [${sender}]: "${capped.slice(0, 80)}${capped.length > 80 ? '...' : ''}"`);
 
   enqueue(capped, sender);
