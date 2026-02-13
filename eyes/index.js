@@ -164,15 +164,23 @@ function connectChat() {
   ws.on('open', () => {
     console.log('[eyes] Connected to AgentChat');
     reconnectDelay = 1000;
-    ws.send(JSON.stringify({ role: 'listener' }));
-    ws.send(JSON.stringify({ type: 'join', channel: AGENTCHAT_CHANNEL }));
+    ws.send(JSON.stringify({ type: 'IDENTIFY', name: 'visage-eyes' }));
   });
 
   ws.on('message', (raw) => {
-    // Listen for "eyes" commands from chat
     try {
       const msg = JSON.parse(raw.toString());
-      if (msg.type === 'message' && msg.content) {
+
+      // Handle WELCOME — join channel after identification
+      if (msg.type === 'WELCOME') {
+        console.log(`[eyes] Identified as ${msg.agent_id || 'ephemeral'}`);
+        ws.send(JSON.stringify({ type: 'JOIN', channel: AGENTCHAT_CHANNEL }));
+        ws.send(JSON.stringify({ type: 'SET_PRESENCE', status: 'listening' }));
+        return;
+      }
+
+      // Listen for "eyes" commands from chat
+      if (msg.type === 'MSG' && msg.content) {
         const text = msg.content.trim().toLowerCase();
         if (text === '!look' || text === '!eyes' || text === '!screenshot') {
           console.log(`[eyes] On-demand capture triggered by ${msg.from_name || msg.from}`);

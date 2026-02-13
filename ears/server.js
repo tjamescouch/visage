@@ -42,17 +42,13 @@ function connectAgentChat() {
     console.log(`[ears] Connected to agentchat`);
     reconnectDelay = 1000;
 
-    // Identify with a nick
-    agentWs.send(JSON.stringify({ nick: SENDER_NICK }));
-
-    // Join the target channel
+    // Identify with the agentchat protocol (ephemeral)
     agentWs.send(JSON.stringify({
-      type: 'join',
-      channel: AGENTCHAT_CHANNEL,
+      type: 'IDENTIFY',
+      name: SENDER_NICK,
     }));
 
-    console.log(`[ears] Joined ${AGENTCHAT_CHANNEL} as "${SENDER_NICK}"`);
-    broadcastStatus('connected');
+    console.log(`[ears] Sent IDENTIFY as "${SENDER_NICK}", waiting for WELCOME...`);
   });
 
   agentWs.on('message', (raw) => {
@@ -63,15 +59,27 @@ function connectAgentChat() {
       return;
     }
 
-    if (msg.type === 'error') {
-      console.error(`[ears] Agentchat error: ${msg.text || JSON.stringify(msg)}`);
+    if (msg.type === 'WELCOME') {
+      console.log(`[ears] Identified as ${msg.agent_id || 'ephemeral'}`);
+      // Join the target channel
+      agentWs.send(JSON.stringify({
+        type: 'JOIN',
+        channel: AGENTCHAT_CHANNEL,
+      }));
+      console.log(`[ears] Joined ${AGENTCHAT_CHANNEL}`);
+      broadcastStatus('connected');
+      return;
+    }
+
+    if (msg.type === 'ERROR') {
+      console.error(`[ears] Agentchat error: ${msg.message || JSON.stringify(msg)}`);
     }
 
     // Forward agent messages to browser clients for TTS playback
-    if (msg.type === 'message' && msg.text && msg.from_name !== SENDER_NICK) {
+    if (msg.type === 'MSG' && msg.content && msg.from_name !== SENDER_NICK) {
       const relay = JSON.stringify({
         type: 'agent_message',
-        text: msg.text,
+        text: msg.content,
         from: msg.from_name || msg.from || 'agent',
       });
       for (const client of browserClients) {
@@ -112,9 +120,9 @@ function sendToAgentChat(text) {
   }
 
   const payload = {
-    type: 'message',
-    channel: AGENTCHAT_CHANNEL,
-    text: text,
+    type: 'MSG',
+    to: AGENTCHAT_CHANNEL,
+    content: text,
   };
 
   agentWs.send(JSON.stringify(payload));
