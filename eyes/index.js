@@ -21,7 +21,7 @@ const AGENTCHAT_CHANNEL = process.env.AGENTCHAT_CHANNEL || '#general';
 const CAPTURE_INTERVAL_S = parseInt(process.env.EYES_INTERVAL_S || '0', 10); // 0 = on-demand only
 const CAPTURE_PATH = process.env.EYES_CAPTURE_PATH || '/tmp/visage-eyes-capture.png';
 const CHANGE_THRESHOLD = parseFloat(process.env.EYES_CHANGE_THRESHOLD || '0.05'); // 5% pixel change
-const HTTP_PORT = parseInt(process.env.EYES_PORT || '3002', 10);
+const HTTP_PORT = parseInt(process.env.EYES_PORT || '3003', 10);
 const MODEL = process.env.EYES_MODEL || 'claude-sonnet-4-5-20250929';
 const MAX_TOKENS = parseInt(process.env.EYES_MAX_TOKENS || '300', 10);
 
